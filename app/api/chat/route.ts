@@ -7,9 +7,33 @@ export async function POST(req: Request) {
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Missing 'message' string" }, { status: 400 });
     }
-    // Voor nu: echo terug (hier kan later AI-call komen)
-    return NextResponse.json({ reply: `Je zei: ${message}` });
+
+    // Call OpenAI Chat Completions
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini", // snel & betaalbaar
+        messages: [
+          { role: "system", content: "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk." },
+          { role: "user", content: message },
+        ],
+      }),
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      return NextResponse.json({ error: "OpenAI error", detail: errText }, { status: 500 });
+    }
+
+    const data = await resp.json();
+    const reply = data?.choices?.[0]?.message?.content ?? "Geen antwoord";
+
+    return NextResponse.json({ reply });
   } catch (e) {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }
