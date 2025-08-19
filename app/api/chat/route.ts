@@ -1,5 +1,8 @@
 // app/api/chat/route.ts
+export const runtime = "nodejs";  // Zorg dat env werkt!
+
 import { NextResponse } from "next/server";
+
 
 // Modellen uit jouw /api/selftest (Responses = GPT‑5 familie, Chat = 3.5)
 const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]; // Responses API
