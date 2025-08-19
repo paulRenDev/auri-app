@@ -2,9 +2,8 @@
 import { NextResponse } from "next/server";
 
 // 1) Voorkeursmodellen per endpoint
-const RESPONSES_MODELS = ["gpt-4o", "gpt-4.1"];           // Responses API
-const CHAT_MODELS      = ["gpt-4o-mini", "gpt-3.5-turbo"]; // Chat Completions API
-
+const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"];
+const CHAT_MODELS = ["gpt-3.5-turbo"];
 const SYSTEM_PROMPT =
   "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.";
 
