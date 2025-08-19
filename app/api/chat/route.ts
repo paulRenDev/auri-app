@@ -1,7 +1,7 @@
 // app/api/chat/route.ts
 import { NextResponse } from "next/server";
 
-const MODELS = ["gpt-5", "gpt-4.1", "gpt-4.1-mini", "o3-mini"];
+const MODELS = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1", "gpt-3.5-turbo"];
 
 export async function POST(req: Request) {
   try {
