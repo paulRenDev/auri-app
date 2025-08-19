@@ -1,24 +1,22 @@
-// app/api/chat/route.ts
 import { NextResponse } from "next/server";
 
-const MODELS = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1", "gpt-3.5-turbo"];
+const PREFERRED_MODELS = [
+  "gpt-4.1",
+  "gpt-4.1-mini",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "gpt-3.5-turbo",
+];
 
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
-
     if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Missing 'message' string" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing 'message' string" }, { status: 400 });
     }
 
-    let reply = "Geen antwoord";
-    let usedModel: string | null = null;
-    let lastError: string | null = null;
-
-    for (const model of MODELS) {
+    // Probeer eerst onze vaste lijst
+    for (const model of PREFERRED_MODELS) {
       try {
         const resp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -29,43 +27,64 @@ export async function POST(req: Request) {
           body: JSON.stringify({
             model,
             messages: [
-              {
-                role: "system",
-                content:
-                  "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.",
-              },
+              { role: "system", content: "Je bent Auri, een behulpzame leerbuddy. Antwoord kort en duidelijk." },
               { role: "user", content: message },
             ],
           }),
         });
 
-        if (!resp.ok) {
-          lastError = `Model ${model} error: ${await resp.text()}`;
-          continue; // probeer volgend model
+        if (resp.ok) {
+          const data = await resp.json();
+          const reply = data?.choices?.[0]?.message?.content ?? "Geen antwoord";
+          return NextResponse.json({ reply, model });
         }
-
-        const data = await resp.json();
-        reply = data?.choices?.[0]?.message?.content ?? "Geen antwoord";
-        usedModel = model;
-        break; // succes → stop fallback
-      } catch (err) {
-        lastError = `Model ${model} exception: ${String(err)}`;
-        continue;
+      } catch {
+        // probeer volgende model
       }
     }
 
-    if (!usedModel) {
-      return NextResponse.json(
-        { error: "Alle modellen faalden", detail: lastError },
-        { status: 500 }
-      );
+    // 👉 Als alles faalt → dynamisch ophalen welke modellen er nu bestaan
+    const modelsResp = await fetch("https://api.openai.com/v1/models", {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+    });
+
+    if (modelsResp.ok) {
+      const data = await modelsResp.json();
+      const available = data.data
+        .map((m: any) => m.id)
+        .filter((id: string) =>
+          id.includes("gpt-")
+        );
+
+      if (available.length > 0) {
+        const fallbackModel = available[0]; // pak eerste beschikbare model
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: fallbackModel,
+            messages: [
+              { role: "system", content: "Je bent Auri, een behulpzame leerbuddy. Antwoord kort en duidelijk." },
+              { role: "user", content: message },
+            ],
+          }),
+        });
+
+        if (resp.ok) {
+          const replyData = await resp.json();
+          const reply = replyData?.choices?.[0]?.message?.content ?? "Geen antwoord";
+          return NextResponse.json({ reply, model: fallbackModel });
+        }
+      }
     }
 
-    return NextResponse.json({ reply, model: usedModel });
-  } catch (err) {
-    return NextResponse.json(
-      { error: "Invalid request", detail: String(err) },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Alle modellen faalden" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 }
