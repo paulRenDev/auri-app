@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // goedkoop en snel
+        model: "gpt-4.1", // goedkoop en snel
         messages: [
           {
             role: "system",
