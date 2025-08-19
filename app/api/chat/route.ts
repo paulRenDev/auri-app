@@ -1,11 +1,12 @@
 // app/api/chat/route.ts
 import { NextResponse } from "next/server";
 
+const MODELS = ["gpt-5", "gpt-4.1", "gpt-4.1-mini", "o3-mini"];
+
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
 
-    // check input
     if (!message || typeof message !== "string") {
       return NextResponse.json(
         { error: "Missing 'message' string" },
@@ -13,42 +14,57 @@ export async function POST(req: Request) {
       );
     }
 
-    // call OpenAI API
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1", // goedkoop en snel
-        messages: [
-          {
-            role: "system",
-            content:
-              "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.",
-          },
-          { role: "user", content: message },
-        ],
-      }),
-    });
+    let reply = "Geen antwoord";
+    let usedModel: string | null = null;
+    let lastError: string | null = null;
 
-    if (!resp.ok) {
-      const err = await resp.text();
+    for (const model of MODELS) {
+      try {
+        const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.",
+              },
+              { role: "user", content: message },
+            ],
+          }),
+        });
+
+        if (!resp.ok) {
+          lastError = `Model ${model} error: ${await resp.text()}`;
+          continue; // probeer volgend model
+        }
+
+        const data = await resp.json();
+        reply = data?.choices?.[0]?.message?.content ?? "Geen antwoord";
+        usedModel = model;
+        break; // succes → stop fallback
+      } catch (err) {
+        lastError = `Model ${model} exception: ${String(err)}`;
+        continue;
+      }
+    }
+
+    if (!usedModel) {
       return NextResponse.json(
-        { error: "OpenAI error", detail: err },
+        { error: "Alle modellen faalden", detail: lastError },
         { status: 500 }
       );
     }
 
-    const data = await resp.json();
-    const reply = data?.choices?.[0]?.message?.content ?? "Geen antwoord";
-
-    // 👇 extra herkenbare prefix zodat je zeker weet dat deze versie draait
-    return NextResponse.json({ reply: `AURI OK → ${reply}` });
-  } catch (e) {
+    return NextResponse.json({ reply, model: usedModel });
+  } catch (err) {
     return NextResponse.json(
-      { error: "Invalid request", detail: String(e) },
+      { error: "Invalid request", detail: String(err) },
       { status: 400 }
     );
   }
