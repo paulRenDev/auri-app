@@ -1,9 +1,10 @@
 // app/api/chat/route.ts
 import { NextResponse } from "next/server";
 
-// 1) Voorkeursmodellen per endpoint
-const RESPONSE_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"];
-const CHAT_MODELS = ["gpt-3.5-turbo"];
+// Modellen uit jouw /api/selftest (Responses = GPT‑5 familie, Chat = 3.5)
+const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]; // Responses API
+const CHAT_MODELS       = ["gpt-3.5-turbo"];                    // Chat Completions API
+
 const SYSTEM_PROMPT =
   "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.";
 
@@ -29,7 +30,6 @@ async function callResponses(model: string, message: string) {
     },
     body: JSON.stringify({
       model,
-      // Responses API ondersteunt 'input' met rollen
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: message },
@@ -63,30 +63,6 @@ async function callChat(model: string, message: string) {
   return { reply, model, endpoint: "chat" as const };
 }
 
-async function callOpenRouter(message: string) {
-  if (!process.env.OPENROUTER_API_KEY) throw new Error("No OpenRouter key");
-  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.SITE_URL ?? "https://example.com",
-      "X-Title": "Auri Chat",
-    },
-    body: JSON.stringify({
-      model: "openrouter/auto",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message },
-      ],
-    }),
-  });
-  if (!resp.ok) throw new Error(`OpenRouter → ${await resp.text()}`);
-  const data = await resp.json();
-  const reply = extractText(data) || "Geen antwoord";
-  return { reply, model: data?.model ?? "openrouter/auto", endpoint: "openrouter" as const };
-}
-
 function localFallback(message: string) {
   const m = message.toLowerCase();
   if (m.includes("wie ben") || m.includes("who are you"))
@@ -103,24 +79,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing 'message' string" }, { status: 400 });
     }
 
-    // A) OpenAI Responses API
+    // A) OpenAI Responses API (GPT‑5 familie)
     for (const model of RESPONSES_MODELS) {
       try { return NextResponse.json(await callResponses(model, message)); }
       catch { /* try next */ }
     }
 
-    // B) OpenAI Chat Completions
+    // B) OpenAI Chat Completions (GPT‑3.5 fallback)
     for (const model of CHAT_MODELS) {
       try { return NextResponse.json(await callChat(model, message)); }
       catch { /* try next */ }
     }
 
-    // C) OpenRouter aggregator
-    try { return NextResponse.json(await callOpenRouter(message)); }
-    catch { /* final fallback */ }
-
-    // D) Altijd een antwoord
-    return NextResponse.json({ reply: `⚠️ Fallback: ${localFallback(message)}`, model: "local-fallback", endpoint: "local" });
+    // C) Altijd een antwoord
+    return NextResponse.json({
+      reply: `⚠️ Fallback: ${localFallback(message)}`,
+      model: "local-fallback",
+      endpoint: "local"
+    });
   } catch (err) {
     return NextResponse.json({ error: "Invalid request", detail: String(err) }, { status: 400 });
   }
