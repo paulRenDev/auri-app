@@ -20,6 +20,8 @@ function extractText(json: any): string {
 
   return "";
 }
+// voorlopig!!!
+console.log("API key?", process.env.OPENAI_API_KEY ? "✅ loaded" : "❌ missing");
 
 async function callResponses(model: string, message: string) {
   const resp = await fetch("https://api.openai.com/v1/responses", {
