@@ -2,7 +2,7 @@
 export const runtime = "nodejs";  // Zorg dat env werkt!
 
 import { NextResponse } from "next/server";
-// … rest van je code …
+// … rest van je code … 
 
 
 // Modellen uit jouw /api/selftest (Responses = GPT‑5 familie, Chat = 3.5)
