@@ -1,58 +1,50 @@
-// app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-const FALLBACK_MODELS = ['gpt-4o', 'gpt-4', 'gpt-3.5-turbo'];
+// Forceer Node.js runtime zodat process.env werkt
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   const { message } = await req.json();
+
   const apiKey = process.env.OPENAI_API_KEY;
+  console.log("🕵️ OPENAI_API_KEY prefix:", apiKey?.slice(0, 10));
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'API key is not set in environment variables.' },
+      { error: "API key ontbreekt op server (undefined)" },
       { status: 500 }
     );
   }
 
-  for (const model of FALLBACK_MODELS) {
-    const payload = {
-      model,
-      messages: [
-        { role: 'system', content: 'Je bent een behulpzame AI assistent.' },
-        { role: 'user', content: message },
-      ],
-      temperature: 0.7,
-    };
+  const payload = {
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: "Je bent een behulpzame assistent." },
+      { role: "user", content: message },
+    ],
+    temperature: 0.7,
+  };
 
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error(`❌ Fout bij model "${model}":`, data);
-        continue; // probeer volgende model
-      }
-
-      const reply = data.choices?.[0]?.message?.content ?? '[Leeg antwoord]';
-
-      return NextResponse.json({ reply, model });
-    } catch (error: any) {
-      console.error(`❌ Netwerkfout bij model "${model}":`, error);
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("🔴 OpenAI error:", data);
+      return NextResponse.json({ error: data }, { status: res.status });
     }
-  }
 
-  return NextResponse.json(
-    {
-      error: 'Alle modellen faalden. Zie server logs.',
-    },
-    { status: 500 }
-  );
+    const reply = data.choices?.[0]?.message?.content ?? "[Geen antwoord]";
+    return NextResponse.json({ reply, model: data.model ?? payload.model });
+  } catch (err) {
+    console.error("🔴 Netwerk/fout bij API-aanroep:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
