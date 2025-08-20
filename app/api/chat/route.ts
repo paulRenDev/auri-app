@@ -1,27 +1,31 @@
+// app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
+  const { message } = await req.json();
+
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  // Debug: log tijdelijk je API key (alleen lokaal!)
+  console.log('🔑 API KEY =', apiKey);
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: '❌ API key niet ingesteld via environment variables' },
+      { status: 500 }
+    );
+  }
+
+  const payload = {
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'Je bent een behulpzame AI assistent.' },
+      { role: 'user', content: message },
+    ],
+    temperature: 0.7,
+  };
+
   try {
-    const { message } = await req.json();
-
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: '❌ OPENAI_API_KEY is niet ingesteld op de server' },
-        { status: 500 }
-      );
-    }
-
-    const payload = {
-      model: 'gpt-4o', 
-      messages: [
-        { role: 'system', content: 'Je bent een behulpzame assistent.' },
-        { role: 'user', content: message },
-      ],
-      temperature: 0.7,
-    };
-
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -33,16 +37,20 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('❌ OpenAI API fout:', errorData);
-      return NextResponse.json({ error: errorData }, { status: response.status });
+      console.error('🛑 OpenAI API fout:', errorData);
+
+      return NextResponse.json(
+        { error: errorData },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content ?? '';
+    const reply = data.choices?.[0]?.message?.content || '⚠️ Geen antwoord ontvangen.';
 
-    return NextResponse.json({ reply, model: data.model });
-  } catch (error) {
-    console.error('❌ Serverfout:', error);
-    return NextResponse.json({ error: 'Interne serverfout' }, { status: 500 });
+    return NextResponse.json({ reply, model: payload.model });
+  } catch (err: any) {
+    console.error('❌ Fout bij API-aanroep:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
