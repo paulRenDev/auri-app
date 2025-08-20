@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = {
-      model: 'gpt-4o',
+      model: 'gpt-4o', 
       messages: [
         { role: 'system', content: 'Je bent een behulpzame assistent.' },
         { role: 'user', content: message },
