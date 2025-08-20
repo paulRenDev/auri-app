@@ -1,30 +1,23 @@
-// app/api/chat/route.ts
-export const runtime = "nodejs";  // Zorg dat env werkt!
-
 import { NextResponse } from "next/server";
-// … rest van je code … 
 
-
-// Modellen uit jouw /api/selftest (Responses = GPT‑5 familie, Chat = 3.5)
-const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"]; // Responses API
-const CHAT_MODELS       = ["gpt-3.5-turbo"];                    // Chat Completions API
+// Modellen uit jouw /api/selftest
+const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"];
+const CHAT_MODELS = ["gpt-3.5-turbo"];
 
 const SYSTEM_PROMPT =
   "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.";
 
 function extractText(json: any): string {
-  // Responses API vormen
   if (typeof json?.output_text === "string") return json.output_text;
   const out0 = json?.output?.[0]?.content?.[0];
   if (out0?.type === "output_text" && typeof out0?.text === "string") return out0.text;
 
-  // Chat Completions vorm
   const cc = json?.choices?.[0]?.message?.content;
   if (typeof cc === "string") return cc;
 
   return "";
 }
-// voorlopig!!!
+
 console.log("API key?", process.env.OPENAI_API_KEY ? "✅ loaded" : "❌ missing");
 
 async function callResponses(model: string, message: string) {
@@ -87,23 +80,32 @@ export async function POST(req: Request) {
 
     // A) OpenAI Responses API (GPT‑5 familie)
     for (const model of RESPONSES_MODELS) {
-      try { return NextResponse.json(await callResponses(model, message)); }
-      catch { /* try next */ }
+      try {
+        return NextResponse.json(await callResponses(model, message));
+      } catch (err) {
+        console.error(`❌ Responses(${model}) failed`, err);
+      }
     }
 
     // B) OpenAI Chat Completions (GPT‑3.5 fallback)
     for (const model of CHAT_MODELS) {
-      try { return NextResponse.json(await callChat(model, message)); }
-      catch { /* try next */ }
+      try {
+        return NextResponse.json(await callChat(model, message));
+      } catch (err) {
+        console.error(`❌ Chat(${model}) failed`, err);
+      }
     }
 
-    // C) Altijd een antwoord
+    // C) Altijd een fallback-antwoord
+    console.error("❌ AI failed for all models – fallback triggered");
     return NextResponse.json({
       reply: `⚠️ Fallback: ${localFallback(message)}`,
       model: "local-fallback",
       endpoint: "local"
     });
+
   } catch (err) {
+    console.error("❌ Unexpected error in /api/chat", err);
     return NextResponse.json({ error: "Invalid request", detail: String(err) }, { status: 400 });
   }
 }
