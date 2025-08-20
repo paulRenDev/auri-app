@@ -1,111 +1,48 @@
-import { NextResponse } from "next/server";
+// app/api/chat/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 
-// Modellen uit jouw /api/selftest
-const RESPONSES_MODELS = ["gpt-5", "gpt-5-mini", "gpt-5-nano"];
-const CHAT_MODELS = ["gpt-3.5-turbo"];
+export async function POST(req: NextRequest) {
+  const { message } = await req.json();
 
-const SYSTEM_PROMPT =
-  "Je bent Auri, een behulpzame leerbuddy. Antwoord kort, duidelijk en vriendelijk.";
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'API key not set' },
+      { status: 500 }
+    );
+  }
 
-function extractText(json: any): string {
-  if (typeof json?.output_text === "string") return json.output_text;
-  const out0 = json?.output?.[0]?.content?.[0];
-  if (out0?.type === "output_text" && typeof out0?.text === "string") return out0.text;
+  const payload = {
+    model: 'gpt-4o', // of 'gpt-3.5-turbo'
+    messages: [
+      { role: 'system', content: 'Je bent een behulpzame assistent.' },
+      { role: 'user', content: message },
+    ],
+    temperature: 0.7,
+  };
 
-  const cc = json?.choices?.[0]?.message?.content;
-  if (typeof cc === "string") return cc;
-
-  return "";
-}
-
-console.log("API key?", process.env.OPENAI_API_KEY ? "✅ loaded" : "❌ missing");
-
-async function callResponses(model: string, message: string) {
-  const resp = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message },
-      ],
-    }),
-  });
-  if (!resp.ok) throw new Error(`Responses(${model}) → ${await resp.text()}`);
-  const data = await resp.json();
-  const reply = extractText(data) || "Geen antwoord";
-  return { reply, model, endpoint: "responses" as const };
-}
-
-async function callChat(model: string, message: string) {
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message },
-      ],
-    }),
-  });
-  if (!resp.ok) throw new Error(`Chat(${model}) → ${await resp.text()}`);
-  const data = await resp.json();
-  const reply = extractText(data) || "Geen antwoord";
-  return { reply, model, endpoint: "chat" as const };
-}
-
-function localFallback(message: string) {
-  const m = message.toLowerCase();
-  if (m.includes("wie ben") || m.includes("who are you"))
-    return "Ik ben Auri, je leerbuddy. Waarmee kan ik je helpen? (bv. wiskunde: breuken)";
-  if (m.includes("help") || m.includes("kan je"))
-    return "Tuurlijk. Geef vak + onderwerp (bv. 'wiskunde: breuken'), ik geef 2 hints en 1 oefenvraag.";
-  return "Ik kan de AI even niet bereiken. Geef vak + onderwerp, ik geef 2 hints en 1 oefenvraag.";
-}
-
-export async function POST(req: Request) {
   try {
-    const { message } = await req.json();
-    if (!message || typeof message !== "string") {
-      return NextResponse.json({ error: "Missing 'message' string" }, { status: 400 });
-    }
-
-    // A) OpenAI Responses API (GPT‑5 familie)
-    for (const model of RESPONSES_MODELS) {
-      try {
-        return NextResponse.json(await callResponses(model, message));
-      } catch (err) {
-        console.error(`❌ Responses(${model}) failed`, err);
-      }
-    }
-
-    // B) OpenAI Chat Completions (GPT‑3.5 fallback)
-    for (const model of CHAT_MODELS) {
-      try {
-        return NextResponse.json(await callChat(model, message));
-      } catch (err) {
-        console.error(`❌ Chat(${model}) failed`, err);
-      }
-    }
-
-    // C) Altijd een fallback-antwoord
-    console.error("❌ AI failed for all models – fallback triggered");
-    return NextResponse.json({
-      reply: `⚠️ Fallback: ${localFallback(message)}`,
-      model: "local-fallback",
-      endpoint: "local"
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
     });
 
-  } catch (err) {
-    console.error("❌ Unexpected error in /api/chat", err);
-    return NextResponse.json({ error: "Invalid request", detail: String(err) }, { status: 400 });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('OpenAI Error:', errText);
+      return NextResponse.json({ error: errText }, { status: 500 });
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || '';
+
+    return NextResponse.json({ reply });
+  } catch (error) {
+    console.error('API Error:', error);
+    return NextResponse.json({ error: 'Er ging iets mis.' }, { status: 500 });
   }
 }
