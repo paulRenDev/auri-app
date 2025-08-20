@@ -1,4 +1,3 @@
-// app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
@@ -13,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = {
-    model: 'gpt-4o', // of 'gpt-3.5-turbo'
+    model: 'gpt-4o',
     messages: [
       { role: 'system', content: 'Je bent een behulpzame assistent.' },
       { role: 'user', content: message },
@@ -40,7 +39,7 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || '';
 
-    return NextResponse.json({ reply });
+    return NextResponse.json({ reply, model: payload.model });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ error: 'Er ging iets mis.' }, { status: 500 });
